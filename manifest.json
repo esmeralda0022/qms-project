@@ -1,0 +1,43 @@
+{
+  "name": "QuailtyMed - Healthcare Quality Management System",
+  "short_name": "QuailtyMed",
+  "description": "NABH and JCI compliant healthcare quality management system for hospitals",
+  "theme_color": "#1e40af",
+  "background_color": "#ffffff",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "./",
+  "lang": "en",
+  "categories": ["health", "medical", "productivity"],
+  "icons": [
+    {
+      "src": "assets/profile.jpg",
+      "sizes": "192x192",
+      "type": "image/jpg",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "assets/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshot-mobile.png",
+      "sizes": "320x640",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile view of checklist interface"
+    },
+    {
+      "src": "assets/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop view of dashboard"
+    }
+  ]
+}
