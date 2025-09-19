@@ -94,17 +94,46 @@
 
         <!-- Main Layout -->
         <main class="main-content">
-            <!-- Left Sidebar - Departments -->
+            <!-- Left Sidebar - Navigation -->
             <aside id="sidebar" class="sidebar">
                 <div class="sidebar-header">
-                    <h3>Departments</h3>
+                    <h3>Navigation</h3>
                     <button id="refreshDepartments" class="refresh-btn" aria-label="Refresh departments">
                         ↻
                     </button>
                 </div>
                 
-                <div id="departmentsList" class="departments-list">
-                    <!-- Departments will be loaded here -->
+                <!-- Admin Menu -->
+                <div id="adminMenu" class="admin-menu" style="display: none;">
+                    <div class="menu-section">
+                        <h4>Administration</h4>
+                        <div class="menu-items">
+                            <div class="menu-item" id="userManagementMenuItem">
+                                <span class="menu-icon">👥</span>
+                                <span>User Management</span>
+                            </div>
+                            <div class="menu-item" id="assetManagementMenuItem">
+                                <span class="menu-icon">🏭</span>
+                                <span>Asset Management</span>
+                            </div>
+                            <div class="menu-item" id="ncrManagementMenuItem">
+                                <span class="menu-icon">❌</span>
+                                <span>NCR Management</span>
+                            </div>
+                            <div class="menu-item" id="reportsMenuItem">
+                                <span class="menu-icon">📊</span>
+                                <span>Reports & Analytics</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Department Navigation -->
+                <div class="menu-section">
+                    <h4>Departments</h4>
+                    <div id="departmentsList" class="departments-list">
+                        <!-- Departments will be loaded here -->
+                    </div>
                 </div>
             </aside>
 
@@ -174,10 +203,354 @@
                     </div>
                 </div>
 
+                <!-- User Management View -->
+                <div id="userManagementView" class="view-container">
+                    <div class="view-header">
+                        <h2>User Management</h2>
+                        <div class="user-management-controls">
+                            <input type="text" id="userSearch" placeholder="Search users..." class="search-input">
+                            <select id="roleFilter" class="filter-select">
+                                <option value="">All Roles</option>
+                                <option value="superadmin">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="auditor">Auditor</option>
+                                <option value="dept_manager">Dept Manager</option>
+                                <option value="technician">Technician</option>
+                                <option value="viewer">Viewer</option>
+                            </select>
+                            <select id="statusFilter" class="filter-select">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <button id="addUserBtn" class="btn btn-primary">
+                                <span class="btn-icon">➕</span>
+                                Add User
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="users-table-container">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination" id="usersPagination">
+                        <!-- Pagination will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Asset Management View -->
+                <div id="assetManagementView" class="view-container">
+                    <div class="view-header">
+                        <h2>Asset Management</h2>
+                        <div class="asset-management-controls">
+                            <input type="text" id="assetSearch" placeholder="Search assets..." class="search-input">
+                            <select id="assetTypeFilter" class="filter-select">
+                                <option value="">All Asset Types</option>
+                                <!-- Asset types will be loaded here -->
+                            </select>
+                            <select id="assetStatusFilter" class="filter-select">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="decommissioned">Decommissioned</option>
+                            </select>
+                            <select id="assetDepartmentFilter" class="filter-select">
+                                <option value="">All Departments</option>
+                                <!-- Departments will be loaded here -->
+                            </select>
+                            <button id="addAssetBtn" class="btn btn-primary">
+                                <span class="btn-icon">➕</span>
+                                Add Asset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="assets-table-container">
+                        <table class="assets-table">
+                            <thead>
+                                <tr>
+                                    <th>Asset Info</th>
+                                    <th>Type</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Next Maintenance</th>
+                                    <th>NCRs</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assetsTableBody">
+                                <!-- Assets will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination" id="assetsPagination">
+                        <!-- Pagination will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- NCR Management View -->
+                <div id="ncrManagementView" class="view-container">
+                    <div class="view-header">
+                        <h2>Non-Conformance Reports (NCR)</h2>
+                        <div class="ncr-management-controls">
+                            <input type="text" id="ncrSearch" placeholder="Search NCRs..." class="search-input">
+                            <select id="ncrStatusFilter" class="filter-select">
+                                <option value="">All Status</option>
+                                <option value="open">Open</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="under_review">Under Review</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                            <select id="ncrSeverityFilter" class="filter-select">
+                                <option value="">All Severity</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                            <select id="ncrDepartmentFilter" class="filter-select">
+                                <option value="">All Departments</option>
+                                <!-- Departments will be loaded here -->
+                            </select>
+                            <button id="addNCRBtn" class="btn btn-primary">
+                                <span class="btn-icon">⚠️</span>
+                                Create NCR
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="ncr-table-container">
+                        <table class="ncr-table">
+                            <thead>
+                                <tr>
+                                    <th>NCR ID</th>
+                                    <th>Title</th>
+                                    <th>Department</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Assigned To</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ncrTableBody">
+                                <!-- NCRs will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination" id="ncrPagination">
+                        <!-- Pagination will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Reports & Analytics View -->
+                <div id="reportsView" class="view-container">
+                    <div class="view-header">
+                        <h2>Reports & Analytics</h2>
+                        <div class="reports-controls">
+                            <select id="reportsDateRange" class="filter-select">
+                                <option value="thisMonth">This Month</option>
+                                <option value="lastMonth">Last Month</option>
+                                <option value="last3Months">Last 3 Months</option>
+                                <option value="last6Months">Last 6 Months</option>
+                                <option value="thisYear">This Year</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                            <input type="date" id="reportsDateFrom" class="date-input" style="display: none;">
+                            <input type="date" id="reportsDateTo" class="date-input" style="display: none;">
+                            <select id="reportsDepartmentFilter" class="filter-select">
+                                <option value="">All Departments</option>
+                                <!-- Departments will be loaded here -->
+                            </select>
+                            <button id="exportReportBtn" class="btn btn-secondary">
+                                <span class="btn-icon">📎</span>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="reports-container">
+                        <!-- Analytics Cards -->
+                        <div class="analytics-cards">
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3>Compliance Overview</h3>
+                                    <span id="complianceOverviewPeriod" class="period-label"></span>
+                                </div>
+                                <div class="card-content">
+                                    <div class="metric-display">
+                                        <div class="metric-value" id="overallComplianceRate">-</div>
+                                        <div class="metric-label">Overall Compliance Rate</div>
+                                    </div>
+                                    <div class="metric-breakdown">
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Completed:</span>
+                                            <span id="completedChecklistsCount">-</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Pending:</span>
+                                            <span id="pendingChecklistsCount">-</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Overdue:</span>
+                                            <span id="overdueChecklistsCount">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3>Asset Status</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="asset-metrics">
+                                        <div class="asset-metric">
+                                            <div class="metric-icon active">🟢</div>
+                                            <div class="metric-info">
+                                                <div class="metric-value" id="activeAssetsCount">-</div>
+                                                <div class="metric-label">Active Assets</div>
+                                            </div>
+                                        </div>
+                                        <div class="asset-metric">
+                                            <div class="metric-icon warning">🟡</div>
+                                            <div class="metric-info">
+                                                <div class="metric-value" id="maintenanceDueCount">-</div>
+                                                <div class="metric-label">Maintenance Due</div>
+                                            </div>
+                                        </div>
+                                        <div class="asset-metric">
+                                            <div class="metric-icon danger">🔴</div>
+                                            <div class="metric-info">
+                                                <div class="metric-value" id="overdueMaintenanceCount">-</div>
+                                                <div class="metric-label">Overdue Maintenance</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3>NCR Summary</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="ncr-metrics">
+                                        <div class="ncr-metric">
+                                            <div class="metric-value" id="totalNCRsCount">-</div>
+                                            <div class="metric-label">Total NCRs</div>
+                                        </div>
+                                        <div class="ncr-metric">
+                                            <div class="metric-value" id="openNCRsCount">-</div>
+                                            <div class="metric-label">Open NCRs</div>
+                                        </div>
+                                        <div class="ncr-metric critical">
+                                            <div class="metric-value" id="criticalNCRsCount">-</div>
+                                            <div class="metric-label">Critical NCRs</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts Section -->
+                        <div class="charts-section">
+                            <div class="chart-container">
+                                <div class="chart-header">
+                                    <h3>Compliance Trends</h3>
+                                </div>
+                                <div class="chart-content" id="complianceTrendsChart">
+                                    <!-- Chart will be rendered here -->
+                                    <div class="chart-placeholder">Compliance trend chart will be displayed here</div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container">
+                                <div class="chart-header">
+                                    <h3>Department Performance</h3>
+                                </div>
+                                <div class="chart-content" id="departmentPerformanceChart">
+                                    <!-- Chart will be rendered here -->
+                                    <div class="chart-placeholder">Department performance chart will be displayed here</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Detailed Reports Section -->
+                        <div class="detailed-reports">
+                            <div class="report-section">
+                                <div class="section-header">
+                                    <h3>Compliance Report by Department</h3>
+                                    <button class="btn btn-sm btn-secondary" onclick="app.loadDetailedComplianceReport()">
+                                        <span class="btn-icon">🔄</span>
+                                        Refresh
+                                    </button>
+                                </div>
+                                <div class="report-table-container">
+                                    <table class="report-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Department</th>
+                                                <th>Total Checklists</th>
+                                                <th>Completed</th>
+                                                <th>Pending</th>
+                                                <th>Overdue</th>
+                                                <th>Compliance Rate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="departmentComplianceTableBody">
+                                            <!-- Department compliance data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="section-header">
+                                    <h3>NCR Analysis</h3>
+                                    <button class="btn btn-sm btn-secondary" onclick="app.loadNCRAnalysisReport()">
+                                        <span class="btn-icon">🔄</span>
+                                        Refresh
+                                    </button>
+                                </div>
+                                <div class="report-charts">
+                                    <div class="mini-chart">
+                                        <h4>NCRs by Severity</h4>
+                                        <div id="ncrSeverityChart" class="chart-placeholder">NCR severity distribution</div>
+                                    </div>
+                                    <div class="mini-chart">
+                                        <h4>NCRs by Category</h4>
+                                        <div id="ncrCategoryChart" class="chart-placeholder">NCR category distribution</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Checklist View -->
                 <div id="checklistView" class="view-container">
                     <div class="view-header">
-                        <button id="backToAssets" class="back-btn">← Back to Assets</button>
+                        <button id="backToAssetSelection" class="back-btn">← Back to Asset Selection</button>
                         <div class="view-title">
                             <h2 id="checklistTitle">Daily Checklist</h2>
                             <p id="checklistInfo" class="view-subtitle"></p>
@@ -210,6 +583,18 @@
                     
                     <div id="documentTypesList" class="document-types-list">
                         <!-- Document types will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Asset Selection View -->
+                <div id="assetSelectionView" class="view-container">
+                    <div class="view-header">
+                        <button id="backToDocumentTypes" class="back-btn">← Back to Document Types</button>
+                        <h2 id="assetSelectionTitle">Select Asset</h2>
+                    </div>
+                    
+                    <div id="assetSelectionList" class="asset-selection-list">
+                        <!-- Assets will be loaded here -->
                     </div>
                 </div>
             </section>
@@ -257,6 +642,313 @@
         </div>
     </div>
 
+    <!-- User Management Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="userModalTitle">Add User</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <div class="form-group">
+                        <label for="userName">Name *</label>
+                        <input type="text" id="userName" name="name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userEmail">Email *</label>
+                        <input type="email" id="userEmail" name="email" required>
+                    </div>
+                    
+                    <div class="form-group" id="passwordGroup">
+                        <label for="userPassword">Password *</label>
+                        <input type="password" id="userPassword" name="password" required minlength="6">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userRole">Role *</label>
+                        <select id="userRole" name="role" required>
+                            <option value="">Select Role</option>
+                            <option value="admin">Admin</option>
+                            <option value="auditor">Auditor</option>
+                            <option value="dept_manager">Dept Manager</option>
+                            <option value="technician">Technician</option>
+                            <option value="viewer">Viewer</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userDepartment">Department</label>
+                        <select id="userDepartment" name="department_id">
+                            <option value="">Select Department</option>
+                            <!-- Departments will be loaded here -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="statusGroup" style="display: none;">
+                        <label for="userStatus">Status</label>
+                        <select id="userStatus" name="is_active">
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div id="passwordResetModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Reset Password</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="passwordResetForm">
+                    <div class="form-group">
+                        <label for="newPassword">New Password *</label>
+                        <input type="password" id="newPassword" name="new_password" required minlength="6">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password *</label>
+                        <input type="password" id="confirmPassword" name="confirm_password" required minlength="6">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Reset Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Asset Management Modal -->
+    <div id="assetModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="assetModalTitle">Add Asset</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="assetForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="assetName">Asset Name *</label>
+                            <input type="text" id="assetName" name="name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assetTag">Asset Tag</label>
+                            <input type="text" id="assetTag" name="asset_tag" placeholder="Unique identifier">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="assetTypeSelect">Asset Type *</label>
+                            <select id="assetTypeSelect" name="asset_type_id" required>
+                                <option value="">Select Asset Type</option>
+                                <!-- Asset types will be loaded here -->
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assetStatus">Status</label>
+                            <select id="assetStatus" name="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="decommissioned">Decommissioned</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="assetModel">Model</label>
+                            <input type="text" id="assetModel" name="model">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assetSerial">Serial Number</label>
+                            <input type="text" id="assetSerial" name="serial_no">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assetLocation">Location</label>
+                        <input type="text" id="assetLocation" name="location" placeholder="Building, room, etc.">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assetVendor">Vendor/Manufacturer</label>
+                        <input type="text" id="assetVendor" name="vendor">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="assetInstallDate">Installation Date</label>
+                            <input type="date" id="assetInstallDate" name="installation_date">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assetWarrantyEnd">Warranty End Date</label>
+                            <input type="date" id="assetWarrantyEnd" name="warranty_end">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assetCalibrationDate">Next Calibration Date</label>
+                        <input type="date" id="assetCalibrationDate" name="next_calibration_date">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Asset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- NCR Management Modal -->
+    <div id="ncrModal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h3 id="ncrModalTitle">Create NCR</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="ncrForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ncrTitle">NCR Title *</label>
+                            <input type="text" id="ncrTitle" name="title" required placeholder="Brief description of non-conformance">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ncrDepartment">Department *</label>
+                            <select id="ncrDepartment" name="department_id" required>
+                                <option value="">Select Department</option>
+                                <!-- Departments will be loaded here -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ncrSeverity">Severity *</label>
+                            <select id="ncrSeverity" name="severity" required>
+                                <option value="">Select Severity</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ncrCategory">Category *</label>
+                            <select id="ncrCategory" name="category" required>
+                                <option value="">Select Category</option>
+                                <option value="process">Process</option>
+                                <option value="equipment">Equipment</option>
+                                <option value="documentation">Documentation</option>
+                                <option value="training">Training</option>
+                                <option value="environment">Environment</option>
+                                <option value="safety">Safety</option>
+                                <option value="quality">Quality</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ncrDescription">Description *</label>
+                        <textarea id="ncrDescription" name="description" rows="4" required 
+                                  placeholder="Detailed description of the non-conformance"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ncrImmediate">Immediate Action Taken</label>
+                        <textarea id="ncrImmediate" name="immediate_action" rows="3" 
+                                  placeholder="Actions taken immediately to address the issue"></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ncrDetectedBy">Detected By</label>
+                            <input type="text" id="ncrDetectedBy" name="detected_by" placeholder="Name of person who detected the issue">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="ncrLocation">Location</label>
+                            <input type="text" id="ncrLocation" name="location" placeholder="Where the non-conformance occurred">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ncrAssignedTo">Assign To</label>
+                        <select id="ncrAssignedTo" name="assigned_to">
+                            <option value="">Select User</option>
+                            <!-- Users will be loaded here -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create NCR</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- NCR Actions Modal -->
+    <div id="ncrActionsModal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h3 id="ncrActionsModalTitle">NCR Actions</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="ncr-info-summary">
+                    <h4 id="ncrInfoTitle">NCR Information</h4>
+                    <div id="ncrInfoContent" class="ncr-summary">
+                        <!-- NCR summary will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="ncr-actions-section">
+                    <div class="actions-header">
+                        <h4>Corrective & Preventive Actions (CAPA)</h4>
+                        <button id="addActionBtn" class="btn btn-sm btn-primary">
+                            <span class="btn-icon">+</span> Add Action
+                        </button>
+                    </div>
+                    
+                    <div id="actionsContainer" class="actions-container">
+                        <!-- Actions will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary modal-close">Close</button>
+                    <button id="updateNCRStatusBtn" class="btn btn-primary">Update Status</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
@@ -264,13 +956,13 @@
     <script src="js/api.js"></script>
     <script src="js/app.js"></script>
     
-    <!-- Service Worker Registration for PWA -->
+    <!-- Service Worker Registration for PWA 
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('Service Worker registered'))
                 .catch(err => console.log('Service Worker registration failed'));
         }
-    </script>
+    </script> -->
 </body>
 </html>

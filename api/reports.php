@@ -1,673 +1,680 @@
 <?php
 /**
- * Reports API
- * Handles report generation and export functionality
- * Provides PDF and CSV export capabilities for compliance reporting
+ * Reports API - Advanced Reporting Features
+ * Handles dashboard metrics, compliance reports, audit trails, and analytics
+ * 
+ * Features:
+ * - Comprehensive dashboard metrics with time-based filtering
+ * - Department performance analytics
+ * - Compliance rate calculations and trends
+ * - Asset utilization and maintenance tracking
+ * - NCR analysis and CAPA effectiveness
+ * - Audit trails and activity logs
+ * - Export capabilities for reports
  */
 
 require_once '../config.php';
 
-// Set headers
+// Enable CORS
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Content-Type: application/json');
 
-// Check authentication
-if (!isLoggedIn()) {
-    jsonResponse(['success' => false, 'error' => 'Authentication required'], 401);
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+// Ensure user is authenticated and has permission
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    sendJsonResponse(['success' => false, 'error' => 'Authentication required'], 401);
+}
+
+$userId = $_SESSION['user_id'];
+$userRole = $_SESSION['user_role'] ?? '';
+
+// Check if user has reporting permissions
+if (!hasReportingPermission($userRole)) {
+    sendJsonResponse(['success' => false, 'error' => 'Insufficient permissions'], 403);
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
+$action = $_GET['action'] ?? '';
 
-switch ($method) {
-    case 'GET':
-        handleReportRequest();
-        break;
-    default:
-        jsonResponse(['success' => false, 'error' => 'Method not allowed'], 405);
-}
-
-/**
- * Handle report generation requests
- * 
- * Supported reports:
- * - checklists: Checklist compliance report
- * - ncrs: Non-conformance reports
- * - maintenance: Maintenance logs
- * - compliance: Overall compliance summary
- */
-function handleReportRequest() {
-    $reportType = isset($_GET['type']) ? sanitize($_GET['type']) : '';
-    $format = isset($_GET['format']) ? sanitize($_GET['format']) : 'json';
-    
-    if (!$reportType) {
-        jsonResponse(['success' => false, 'error' => 'Report type required'], 400);
-    }
-    
-    // Check user permissions
-    if (!hasRole(['superadmin', 'admin', 'auditor', 'dept_manager'])) {
-        jsonResponse(['success' => false, 'error' => 'Insufficient permissions'], 403);
-    }
-    
-    switch ($reportType) {
-        case 'checklists':
-            generateChecklistReport($format);
+try {
+    switch ($method) {
+        case 'GET':
+            handleGetRequest($action);
             break;
-        case 'ncrs':
-            generateNCRReport($format);
-            break;
-        case 'compliance':
-            generateComplianceReport($format);
-            break;
-        case 'maintenance':
-            generateMaintenanceReport($format);
+        case 'POST':
+            handlePostRequest($action);
             break;
         default:
-            jsonResponse(['success' => false, 'error' => 'Invalid report type'], 400);
+            sendJsonResponse(['success' => false, 'error' => 'Method not allowed'], 405);
+    }
+} catch (Exception $e) {
+    logError('Reports API Error', $e->getMessage(), [
+        'user_id' => $userId,
+        'method' => $method,
+        'action' => $action
+    ]);
+    
+    sendJsonResponse(['success' => false, 'error' => 'Internal server error'], 500);
+}
+
+/**
+ * Handle GET requests for reports
+ */
+function handleGetRequest($action) {
+    switch ($action) {
+        case 'dashboard_analytics':
+            getDashboardAnalytics();
+            break;
+        case 'compliance_report':
+            getComplianceReport();
+            break;
+        case 'department_performance':
+            getDepartmentPerformance();
+            break;
+        case 'asset_utilization':
+            getAssetUtilization();
+            break;
+        case 'ncr_analysis':
+            getNCRAnalysis();
+            break;
+        case 'audit_trail':
+            getAuditTrail();
+            break;
+        case 'maintenance_trends':
+            getMaintenanceTrends();
+            break;
+        default:
+            sendJsonResponse(['success' => false, 'error' => 'Invalid action'], 400);
     }
 }
 
 /**
- * Generate checklist compliance report
- * @param string $format Output format (json, csv, pdf)
+ * Handle POST requests for report generation and exports
  */
-function generateChecklistReport($format) {
-    $db = Database::getInstance()->getConnection();
+function handlePostRequest($action) {
+    $input = json_decode(file_get_contents('php://input'), true);
     
-    // Get filter parameters
-    $departmentId = isset($_GET['department_id']) ? intval($_GET['department_id']) : null;
-    $fromDate = isset($_GET['from_date']) ? sanitize($_GET['from_date']) : date('Y-m-01');
-    $toDate = isset($_GET['to_date']) ? sanitize($_GET['to_date']) : date('Y-m-d');
-    
-    try {
-        $sql = "
-            SELECT 
-                c.id,
-                c.checklist_name,
-                c.status,
-                c.created_at,
-                c.completed_at,
-                a.name as asset_name,
-                a.asset_tag,
-                d.name as department_name,
-                dt.name as document_type,
-                u1.name as created_by_name,
-                u2.name as assigned_to_name,
-                COUNT(ci.id) as total_items,
-                SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) as passed_items,
-                SUM(CASE WHEN ci.result = 'fail' THEN 1 ELSE 0 END) as failed_items,
-                SUM(CASE WHEN ci.result = 'na' THEN 1 ELSE 0 END) as na_items,
-                ROUND(
-                    (SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) * 100.0) / 
-                    NULLIF(COUNT(ci.id), 0), 2
-                ) as compliance_percentage
-            FROM checklists c
-            JOIN assets a ON c.asset_id = a.id
-            JOIN asset_types at ON a.asset_type_id = at.id
-            JOIN departments d ON at.department_id = d.id
-            JOIN document_types dt ON c.document_type_id = dt.id
-            JOIN users u1 ON c.created_by = u1.id
-            LEFT JOIN users u2 ON c.assigned_to = u2.id
-            LEFT JOIN checklist_items ci ON c.id = ci.checklist_id
-            WHERE c.created_at BETWEEN ? AND ?
-        ";
-        
-        $params = [$fromDate . ' 00:00:00', $toDate . ' 23:59:59'];
-        
-        if ($departmentId) {
-            $sql .= " AND d.id = ?";
-            $params[] = $departmentId;
-        }
-        
-        $sql .= " 
-            GROUP BY c.id, c.checklist_name, c.status, c.created_at, c.completed_at,
-                     a.name, a.asset_tag, d.name, dt.name, u1.name, u2.name
-            ORDER BY c.created_at DESC
-        ";
-        
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $data = $stmt->fetchAll();
-        
-        switch ($format) {
-            case 'csv':
-                exportCSV($data, 'checklist_report');
-                break;
-            case 'pdf':
-                exportPDF($data, 'Checklist Compliance Report', 'checklist_report');
-                break;
-            default:
-                jsonResponse([
-                    'success' => true,
-                    'data' => $data,
-                    'summary' => generateChecklistSummary($data)
-                ]);
-        }
-        
-        // Log report generation
-        logAuditTrail('generate_report', 'report', null, [
-            'type' => 'checklists',
-            'format' => $format,
-            'filters' => $_GET
-        ]);
-        
-    } catch (Exception $e) {
-        error_log("Report generation error: " . $e->getMessage());
-        jsonResponse(['success' => false, 'error' => 'Report generation failed'], 500);
+    switch ($action) {
+        case 'generate_custom_report':
+            generateCustomReport($input);
+            break;
+        case 'export_report':
+            exportReport($input);
+            break;
+        default:
+            sendJsonResponse(['success' => false, 'error' => 'Invalid action'], 400);
     }
 }
 
 /**
- * Generate NCR report
- * @param string $format Output format
+ * Get comprehensive dashboard analytics
  */
-function generateNCRReport($format) {
-    $db = Database::getInstance()->getConnection();
+function getDashboardAnalytics() {
+    global $pdo, $userId, $userRole;
     
-    $departmentId = isset($_GET['department_id']) ? intval($_GET['department_id']) : null;
-    $fromDate = isset($_GET['from_date']) ? sanitize($_GET['from_date']) : date('Y-m-01');
-    $toDate = isset($_GET['to_date']) ? sanitize($_GET['to_date']) : date('Y-m-d');
+    $filters = [
+        'date_from' => $_GET['date_from'] ?? date('Y-m-01'), // Start of current month
+        'date_to' => $_GET['date_to'] ?? date('Y-m-t'), // End of current month
+        'department_id' => $_GET['department_id'] ?? null
+    ];
     
-    try {
-        $sql = "
-            SELECT 
-                n.id,
-                n.ncr_number,
-                n.description,
-                n.status,
-                n.severity,
-                n.due_date,
-                n.completed_date,
-                n.created_at,
-                d.name as department_name,
-                a.name as asset_name,
-                a.asset_tag,
-                u1.name as raised_by_name,
-                u2.name as assigned_to_name,
-                ci.question as checklist_question,
-                s.source as standard_source,
-                s.clause_id as standard_clause
-            FROM ncrs n
-            JOIN departments d ON n.department_id = d.id
-            LEFT JOIN assets a ON n.asset_id = a.id
-            JOIN users u1 ON n.raised_by = u1.id
-            LEFT JOIN users u2 ON n.assigned_to = u2.id
-            LEFT JOIN checklist_items ci ON n.checklist_item_id = ci.id
-            LEFT JOIN standards s ON ci.standard_id = s.id
-            WHERE n.created_at BETWEEN ? AND ?
-        ";
-        
-        $params = [$fromDate . ' 00:00:00', $toDate . ' 23:59:59'];
-        
-        if ($departmentId) {
-            $sql .= " AND d.id = ?";
-            $params[] = $departmentId;
-        }
-        
-        $sql .= " ORDER BY n.created_at DESC";
-        
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $data = $stmt->fetchAll();
-        
-        switch ($format) {
-            case 'csv':
-                exportCSV($data, 'ncr_report');
-                break;
-            case 'pdf':
-                exportPDF($data, 'Non-Conformance Report', 'ncr_report');
-                break;
-            default:
-                jsonResponse([
-                    'success' => true,
-                    'data' => $data,
-                    'summary' => generateNCRSummary($data)
-                ]);
-        }
-        
-        logAuditTrail('generate_report', 'report', null, [
-            'type' => 'ncrs',
-            'format' => $format
-        ]);
-        
-    } catch (Exception $e) {
-        error_log("NCR report error: " . $e->getMessage());
-        jsonResponse(['success' => false, 'error' => 'NCR report generation failed'], 500);
+    $departmentFilter = '';
+    $params = [$filters['date_from'], $filters['date_to']];
+    
+    if ($filters['department_id']) {
+        $departmentFilter = ' AND d.id = ?';
+        $params[] = $filters['department_id'];
     }
-}
-
-/**
- * Generate compliance summary report
- * @param string $format Output format
- */
-function generateComplianceReport($format) {
-    $db = Database::getInstance()->getConnection();
+    
+    // Restrict to user's department if not admin
+    if (!in_array($userRole, ['superadmin', 'admin'])) {
+        $departmentFilter .= ' AND d.id = ?';
+        $params[] = $_SESSION['department_id'];
+    }
     
     try {
-        // Overall compliance by department
-        $stmt = $db->prepare("
-            SELECT 
-                d.name as department_name,
-                COUNT(DISTINCT c.id) as total_checklists,
-                COUNT(ci.id) as total_items,
-                SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) as passed_items,
-                SUM(CASE WHEN ci.result = 'fail' THEN 1 ELSE 0 END) as failed_items,
-                ROUND(
-                    (SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) * 100.0) / 
-                    NULLIF(COUNT(ci.id), 0), 2
-                ) as compliance_percentage
-            FROM departments d
-            LEFT JOIN asset_types at ON d.id = at.department_id
-            LEFT JOIN assets a ON at.id = a.asset_type_id
-            LEFT JOIN checklists c ON a.id = c.asset_id
-            LEFT JOIN checklist_items ci ON c.id = ci.checklist_id
-            WHERE c.status IN ('completed', 'signed_off')
-            GROUP BY d.id, d.name
-            ORDER BY compliance_percentage DESC
-        ");
-        $stmt->execute();
-        $departmentCompliance = $stmt->fetchAll();
-        
-        // Compliance by standards
-        $stmt = $db->prepare("
-            SELECT 
-                s.source,
-                s.clause_id,
-                s.title,
-                COUNT(ci.id) as total_items,
-                SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) as passed_items,
-                SUM(CASE WHEN ci.result = 'fail' THEN 1 ELSE 0 END) as failed_items,
-                ROUND(
-                    (SUM(CASE WHEN ci.result = 'pass' THEN 1 ELSE 0 END) * 100.0) / 
-                    NULLIF(COUNT(ci.id), 0), 2
-                ) as compliance_percentage
-            FROM standards s
-            LEFT JOIN checklist_items ci ON s.id = ci.standard_id
-            LEFT JOIN checklists c ON ci.checklist_id = c.id
-            WHERE c.status IN ('completed', 'signed_off')
-            GROUP BY s.id, s.source, s.clause_id, s.title
-            HAVING total_items > 0
-            ORDER BY s.source, s.clause_id
-        ");
-        $stmt->execute();
-        $standardsCompliance = $stmt->fetchAll();
-        
-        $data = [
-            'department_compliance' => $departmentCompliance,
-            'standards_compliance' => $standardsCompliance,
-            'generated_at' => date('Y-m-d H:i:s')
+        // Overall metrics
+        $metrics = [
+            'total_checklists' => 0,
+            'completed_checklists' => 0,
+            'pending_checklists' => 0,
+            'overdue_checklists' => 0,
+            'compliance_rate' => 0,
+            'total_assets' => 0,
+            'active_assets' => 0,
+            'maintenance_due' => 0,
+            'overdue_maintenance' => 0,
+            'total_ncrs' => 0,
+            'open_ncrs' => 0,
+            'closed_ncrs' => 0,
+            'critical_ncrs' => 0
         ];
         
-        switch ($format) {
-            case 'csv':
-                exportComplianceCSV($data);
-                break;
-            case 'pdf':
-                exportCompliancePDF($data);
-                break;
-            default:
-                jsonResponse(['success' => true, 'data' => $data]);
+        // Checklist metrics
+        $stmt = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN c.status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN c.status = 'pending' AND c.due_date < NOW() THEN 1 ELSE 0 END) as overdue
+            FROM checklists c
+            JOIN assets a ON c.asset_id = a.id
+            JOIN departments d ON a.department_id = d.id
+            WHERE c.created_at BETWEEN ? AND ? $departmentFilter
+        ");
+        $stmt->execute($params);
+        $checklistData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $metrics['total_checklists'] = (int)$checklistData['total'];
+        $metrics['completed_checklists'] = (int)$checklistData['completed'];
+        $metrics['pending_checklists'] = (int)$checklistData['pending'];
+        $metrics['overdue_checklists'] = (int)$checklistData['overdue'];
+        $metrics['compliance_rate'] = $metrics['total_checklists'] > 0 
+            ? round(($metrics['completed_checklists'] / $metrics['total_checklists']) * 100, 1) 
+            : 0;
+        
+        // Asset metrics
+        $stmt = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN a.status = 'active' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN a.next_maintenance_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as maintenance_due,
+                SUM(CASE WHEN a.next_maintenance_date < NOW() THEN 1 ELSE 0 END) as overdue_maintenance
+            FROM assets a
+            JOIN departments d ON a.department_id = d.id
+            WHERE 1=1 $departmentFilter
+        ");
+        $assetParams = [];
+        if ($filters['department_id']) {
+            $assetParams[] = $filters['department_id'];
         }
+        if (!in_array($userRole, ['superadmin', 'admin'])) {
+            $assetParams[] = $_SESSION['department_id'];
+        }
+        $stmt->execute($assetParams);
+        $assetData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $metrics['total_assets'] = (int)$assetData['total'];
+        $metrics['active_assets'] = (int)$assetData['active'];
+        $metrics['maintenance_due'] = (int)$assetData['maintenance_due'];
+        $metrics['overdue_maintenance'] = (int)$assetData['overdue_maintenance'];
+        
+        // NCR metrics
+        $stmt = $pdo->prepare("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN n.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) as open,
+                SUM(CASE WHEN n.status = 'closed' THEN 1 ELSE 0 END) as closed,
+                SUM(CASE WHEN n.severity = 'critical' AND n.status != 'closed' THEN 1 ELSE 0 END) as critical
+            FROM ncrs n
+            JOIN departments d ON n.department_id = d.id
+            WHERE n.created_at BETWEEN ? AND ? $departmentFilter
+        ");
+        $stmt->execute($params);
+        $ncrData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $metrics['total_ncrs'] = (int)$ncrData['total'];
+        $metrics['open_ncrs'] = (int)$ncrData['open'];
+        $metrics['closed_ncrs'] = (int)$ncrData['closed'];
+        $metrics['critical_ncrs'] = (int)$ncrData['critical'];
+        
+        // Trend data (last 6 months)
+        $trends = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = date('Y-m-01', strtotime("-$i months"));
+            $monthEnd = date('Y-m-t', strtotime("-$i months"));
+            $monthName = date('M Y', strtotime("-$i months"));
+            
+            // Compliance rate for this month
+            $stmt = $pdo->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) as completed
+                FROM checklists c
+                JOIN assets a ON c.asset_id = a.id
+                JOIN departments d ON a.department_id = d.id
+                WHERE c.created_at BETWEEN ? AND ? $departmentFilter
+            ");
+            $monthParams = [$monthStart, $monthEnd];
+            if ($filters['department_id']) {
+                $monthParams[] = $filters['department_id'];
+            }
+            if (!in_array($userRole, ['superadmin', 'admin'])) {
+                $monthParams[] = $_SESSION['department_id'];
+            }
+            $stmt->execute($monthParams);
+            $monthData = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $monthCompliance = $monthData['total'] > 0 
+                ? round(($monthData['completed'] / $monthData['total']) * 100, 1) 
+                : 0;
+            
+            $trends[] = [
+                'month' => $monthName,
+                'compliance_rate' => $monthCompliance,
+                'total_checklists' => (int)$monthData['total'],
+                'completed_checklists' => (int)$monthData['completed']
+            ];
+        }
+        
+        sendJsonResponse([
+            'success' => true,
+            'data' => [
+                'metrics' => $metrics,
+                'trends' => $trends,
+                'period' => [
+                    'from' => $filters['date_from'],
+                    'to' => $filters['date_to']
+                ]
+            ]
+        ]);
         
     } catch (Exception $e) {
-        error_log("Compliance report error: " . $e->getMessage());
-        jsonResponse(['success' => false, 'error' => 'Compliance report generation failed'], 500);
+        throw $e;
     }
 }
 
 /**
- * Generate maintenance report
- * @param string $format Output format
+ * Get compliance report with detailed breakdown
  */
-function generateMaintenanceReport($format) {
-    // Simple maintenance report implementation
-    // In a full system, this would have more detailed maintenance tracking
+function getComplianceReport() {
+    global $pdo, $userId, $userRole;
     
-    $data = [
-        [
-            'asset_name' => 'Main Transformer Unit 1',
-            'asset_tag' => 'TRF-001',
-            'last_maintenance' => '2024-01-15',
-            'next_due' => '2024-02-15',
-            'status' => 'Due Soon'
-        ],
-        [
-            'asset_name' => 'Emergency Generator 1',
-            'asset_tag' => 'DG-001',
-            'last_maintenance' => '2024-01-20',
-            'next_due' => '2024-02-20',
-            'status' => 'On Schedule'
-        ]
+    $filters = [
+        'date_from' => $_GET['date_from'] ?? date('Y-m-01'),
+        'date_to' => $_GET['date_to'] ?? date('Y-m-t'),
+        'department_id' => $_GET['department_id'] ?? null
     ];
     
-    switch ($format) {
-        case 'csv':
-            exportCSV($data, 'maintenance_report');
-            break;
-        case 'pdf':
-            exportPDF($data, 'Maintenance Schedule Report', 'maintenance_report');
-            break;
-        default:
-            jsonResponse(['success' => true, 'data' => $data]);
-    }
-}
-
-/**
- * Export data as CSV
- * @param array $data Data to export
- * @param string $filename Base filename
- */
-function exportCSV($data, $filename) {
-    if (empty($data)) {
-        jsonResponse(['success' => false, 'error' => 'No data to export'], 400);
-        return;
+    $departmentFilter = '';
+    $params = [$filters['date_from'], $filters['date_to']];
+    
+    if ($filters['department_id']) {
+        $departmentFilter = ' AND d.id = ?';
+        $params[] = $filters['department_id'];
     }
     
-    $filename = $filename . '_' . date('Y-m-d_H-i-s') . '.csv';
-    
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-cache, must-revalidate');
-    
-    $output = fopen('php://output', 'w');
-    
-    // Add BOM for Excel compatibility
-    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-    
-    // Write header row
-    fputcsv($output, array_keys($data[0]));
-    
-    // Write data rows
-    foreach ($data as $row) {
-        fputcsv($output, $row);
+    if (!in_array($userRole, ['superadmin', 'admin'])) {
+        $departmentFilter .= ' AND d.id = ?';
+        $params[] = $_SESSION['department_id'];
     }
     
-    fclose($output);
-    exit;
-}
-
-/**
- * Export data as PDF (simplified implementation)
- * @param array $data Data to export
- * @param string $title Report title
- * @param string $filename Base filename
- */
-function exportPDF($data, $title, $filename) {
-    // For a production system, you'd use a PDF library like TCPDF or FPDF
-    // This is a simplified HTML-to-PDF implementation
-    
-    $filename = $filename . '_' . date('Y-m-d_H-i-s') . '.html';
-    
-    header('Content-Type: text/html; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    
-    echo generatePDFHTML($data, $title);
-    exit;
-}
-
-/**
- * Generate HTML for PDF export
- * @param array $data Data for the report
- * @param string $title Report title
- * @return string HTML content
- */
-function generatePDFHTML($data, $title) {
-    if (empty($data)) {
-        return '<p>No data available for this report.</p>';
-    }
-    
-    $html = '<!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>' . htmlspecialchars($title) . '</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f3f4f6; font-weight: bold; }
-            .header { margin-bottom: 20px; }
-            .footer { margin-top: 20px; font-size: 12px; color: #666; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>' . htmlspecialchars($title) . '</h1>
-            <p>Generated: ' . date('Y-m-d H:i:s') . '</p>
-            <p>QuailtyMed Healthcare Quality Management System</p>
-        </div>
+    try {
+        // Department-wise compliance
+        $stmt = $pdo->prepare("
+            SELECT 
+                d.id,
+                d.name as department_name,
+                COUNT(c.id) as total_checklists,
+                SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) as completed_checklists,
+                SUM(CASE WHEN c.status = 'pending' THEN 1 ELSE 0 END) as pending_checklists,
+                SUM(CASE WHEN c.status = 'pending' AND c.due_date < NOW() THEN 1 ELSE 0 END) as overdue_checklists,
+                ROUND(
+                    (SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) / 
+                     NULLIF(COUNT(c.id), 0)) * 100, 1
+                ) as compliance_rate
+            FROM departments d
+            LEFT JOIN assets a ON d.id = a.department_id
+            LEFT JOIN checklists c ON a.id = c.asset_id 
+                AND c.created_at BETWEEN ? AND ?
+            WHERE 1=1 $departmentFilter
+            GROUP BY d.id, d.name
+            ORDER BY compliance_rate DESC
+        ");
+        $stmt->execute($params);
+        $departmentCompliance = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        <table>';
-    
-    // Table header
-    $html .= '<thead><tr>';
-    foreach (array_keys($data[0]) as $header) {
-        $html .= '<th>' . htmlspecialchars(ucwords(str_replace('_', ' ', $header))) . '</th>';
-    }
-    $html .= '</tr></thead><tbody>';
-    
-    // Table rows
-    foreach ($data as $row) {
-        $html .= '<tr>';
-        foreach ($row as $cell) {
-            $html .= '<td>' . htmlspecialchars($cell ?? '') . '</td>';
-        }
-        $html .= '</tr>';
-    }
-    
-    $html .= '</tbody></table>
+        // Asset type compliance
+        $stmt = $pdo->prepare("
+            SELECT 
+                at.id,
+                at.name as asset_type_name,
+                COUNT(c.id) as total_checklists,
+                SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) as completed_checklists,
+                ROUND(
+                    (SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) / 
+                     NULLIF(COUNT(c.id), 0)) * 100, 1
+                ) as compliance_rate
+            FROM asset_types at
+            LEFT JOIN assets a ON at.id = a.asset_type_id
+            LEFT JOIN departments d ON a.department_id = d.id
+            LEFT JOIN checklists c ON a.id = c.asset_id 
+                AND c.created_at BETWEEN ? AND ?
+            WHERE 1=1 $departmentFilter
+            GROUP BY at.id, at.name
+            HAVING total_checklists > 0
+            ORDER BY compliance_rate DESC
+        ");
+        $stmt->execute($params);
+        $assetTypeCompliance = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        <div class="footer">
-            <p>This report complies with NABH and JCI documentation standards.</p>
-        </div>
-    </body>
-    </html>';
-    
-    return $html;
-}
-
-/**
- * Generate summary for checklist report
- * @param array $data Checklist data
- * @return array Summary statistics
- */
-function generateChecklistSummary($data) {
-    $totalChecklists = count($data);
-    $completedChecklists = 0;
-    $totalCompliance = 0;
-    
-    foreach ($data as $row) {
-        if ($row['status'] === 'completed' || $row['status'] === 'signed_off') {
-            $completedChecklists++;
-        }
-        if (isset($row['compliance_percentage'])) {
-            $totalCompliance += $row['compliance_percentage'];
-        }
-    }
-    
-    return [
-        'total_checklists' => $totalChecklists,
-        'completed_checklists' => $completedChecklists,
-        'completion_rate' => $totalChecklists > 0 ? round(($completedChecklists / $totalChecklists) * 100, 2) : 0,
-        'average_compliance' => $totalChecklists > 0 ? round($totalCompliance / $totalChecklists, 2) : 0
-    ];
-}
-
-/**
- * Generate summary for NCR report
- * @param array $data NCR data
- * @return array Summary statistics
- */
-function generateNCRSummary($data) {
-    $totalNCRs = count($data);
-    $openNCRs = 0;
-    $overdueNCRs = 0;
-    $severityCount = ['low' => 0, 'medium' => 0, 'high' => 0, 'critical' => 0];
-    
-    foreach ($data as $row) {
-        if ($row['status'] === 'open' || $row['status'] === 'in_progress') {
-            $openNCRs++;
-        }
-        
-        if ($row['due_date'] && $row['status'] !== 'closed' && strtotime($row['due_date']) < time()) {
-            $overdueNCRs++;
-        }
-        
-        if (isset($severityCount[$row['severity']])) {
-            $severityCount[$row['severity']]++;
-        }
-    }
-    
-    return [
-        'total_ncrs' => $totalNCRs,
-        'open_ncrs' => $openNCRs,
-        'overdue_ncrs' => $overdueNCRs,
-        'severity_breakdown' => $severityCount
-    ];
-}
-
-/**
- * Export compliance data as CSV
- * @param array $data Compliance data
- */
-function exportComplianceCSV($data) {
-    $filename = 'compliance_report_' . date('Y-m-d_H-i-s') . '.csv';
-    
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    
-    $output = fopen('php://output', 'w');
-    
-    // Department compliance section
-    fputcsv($output, ['Department Compliance Summary']);
-    fputcsv($output, ['Department', 'Total Checklists', 'Total Items', 'Passed Items', 'Failed Items', 'Compliance %']);
-    
-    foreach ($data['department_compliance'] as $row) {
-        fputcsv($output, [
-            $row['department_name'],
-            $row['total_checklists'],
-            $row['total_items'],
-            $row['passed_items'],
-            $row['failed_items'],
-            $row['compliance_percentage'] . '%'
+        sendJsonResponse([
+            'success' => true,
+            'data' => [
+                'department_compliance' => $departmentCompliance,
+                'asset_type_compliance' => $assetTypeCompliance,
+                'period' => [
+                    'from' => $filters['date_from'],
+                    'to' => $filters['date_to']
+                ]
+            ]
         ]);
+        
+    } catch (Exception $e) {
+        throw $e;
+    }
+}
+
+/**
+ * Get department performance metrics
+ */
+function getDepartmentPerformance() {
+    global $pdo, $userId, $userRole;
+    
+    $departmentId = $_GET['department_id'] ?? null;
+    
+    if (!$departmentId) {
+        sendJsonResponse(['success' => false, 'error' => 'Department ID required'], 400);
     }
     
-    // Empty row
-    fputcsv($output, []);
+    // Check permission for department access
+    if (!in_array($userRole, ['superadmin', 'admin']) && $departmentId != $_SESSION['department_id']) {
+        sendJsonResponse(['success' => false, 'error' => 'Access denied to this department'], 403);
+    }
     
-    // Standards compliance section
-    fputcsv($output, ['Standards Compliance Summary']);
-    fputcsv($output, ['Standard', 'Clause ID', 'Title', 'Total Items', 'Passed Items', 'Failed Items', 'Compliance %']);
-    
-    foreach ($data['standards_compliance'] as $row) {
-        fputcsv($output, [
-            $row['source'],
-            $row['clause_id'],
-            $row['title'],
-            $row['total_items'],
-            $row['passed_items'],
-            $row['failed_items'],
-            $row['compliance_percentage'] . '%'
+    try {
+        // Department overview
+        $stmt = $pdo->prepare("
+            SELECT 
+                d.id,
+                d.name,
+                d.description,
+                COUNT(DISTINCT a.id) as total_assets,
+                COUNT(DISTINCT u.id) as total_users,
+                COUNT(DISTINCT c.id) as total_checklists_this_month,
+                COUNT(DISTINCT n.id) as total_ncrs_this_month
+            FROM departments d
+            LEFT JOIN assets a ON d.id = a.department_id
+            LEFT JOIN users u ON d.id = u.department_id AND u.is_active = 1
+            LEFT JOIN checklists c ON a.id = c.asset_id 
+                AND c.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            LEFT JOIN ncrs n ON d.id = n.department_id 
+                AND n.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            WHERE d.id = ?
+            GROUP BY d.id, d.name, d.description
+        ");
+        $stmt->execute([$departmentId]);
+        $overview = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Recent activity (last 30 days)
+        $stmt = $pdo->prepare("
+            SELECT 
+                DATE(created_at) as activity_date,
+                COUNT(*) as checklist_count
+            FROM checklists c
+            JOIN assets a ON c.asset_id = a.id
+            WHERE a.department_id = ? 
+                AND c.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY DATE(created_at)
+            ORDER BY activity_date DESC
+            LIMIT 30
+        ");
+        $stmt->execute([$departmentId]);
+        $recentActivity = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        sendJsonResponse([
+            'success' => true,
+            'data' => [
+                'overview' => $overview,
+                'recent_activity' => $recentActivity
+            ]
         ]);
+        
+    } catch (Exception $e) {
+        throw $e;
     }
-    
-    fclose($output);
-    exit;
 }
 
 /**
- * Export compliance data as PDF
- * @param array $data Compliance data
+ * Get NCR analysis data
  */
-function exportCompliancePDF($data) {
-    $filename = 'compliance_report_' . date('Y-m-d_H-i-s') . '.html';
+function getNCRAnalysis() {
+    global $pdo, $userId, $userRole;
     
-    header('Content-Type: text/html; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $filters = [
+        'date_from' => $_GET['date_from'] ?? date('Y-m-01'),
+        'date_to' => $_GET['date_to'] ?? date('Y-m-t'),
+        'department_id' => $_GET['department_id'] ?? null
+    ];
     
-    // Generate comprehensive compliance PDF HTML
-    $html = generateCompliancePDFHTML($data);
-    echo $html;
-    exit;
+    $departmentFilter = '';
+    $params = [$filters['date_from'], $filters['date_to']];
+    
+    if ($filters['department_id']) {
+        $departmentFilter = ' AND n.department_id = ?';
+        $params[] = $filters['department_id'];
+    }
+    
+    if (!in_array($userRole, ['superadmin', 'admin'])) {
+        $departmentFilter .= ' AND n.department_id = ?';
+        $params[] = $_SESSION['department_id'];
+    }
+    
+    try {
+        // NCR by severity
+        $stmt = $pdo->prepare("
+            SELECT 
+                severity,
+                COUNT(*) as count,
+                AVG(DATEDIFF(IFNULL(closed_at, NOW()), created_at)) as avg_resolution_days
+            FROM ncrs n
+            WHERE n.created_at BETWEEN ? AND ? $departmentFilter
+            GROUP BY severity
+            ORDER BY 
+                CASE severity 
+                    WHEN 'critical' THEN 1 
+                    WHEN 'high' THEN 2 
+                    WHEN 'medium' THEN 3 
+                    WHEN 'low' THEN 4 
+                END
+        ");
+        $stmt->execute($params);
+        $severityBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // NCR by category
+        $stmt = $pdo->prepare("
+            SELECT 
+                category,
+                COUNT(*) as count
+            FROM ncrs n
+            WHERE n.created_at BETWEEN ? AND ? $departmentFilter
+            GROUP BY category
+            ORDER BY count DESC
+        ");
+        $stmt->execute($params);
+        $categoryBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // NCR trends (last 6 months)
+        $trends = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = date('Y-m-01', strtotime("-$i months"));
+            $monthEnd = date('Y-m-t', strtotime("-$i months"));
+            $monthName = date('M Y', strtotime("-$i months"));
+            
+            $stmt = $pdo->prepare("
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed
+                FROM ncrs n
+                WHERE n.created_at BETWEEN ? AND ? $departmentFilter
+            ");
+            $monthParams = [$monthStart, $monthEnd];
+            if ($filters['department_id']) {
+                $monthParams[] = $filters['department_id'];
+            }
+            if (!in_array($userRole, ['superadmin', 'admin'])) {
+                $monthParams[] = $_SESSION['department_id'];
+            }
+            $stmt->execute($monthParams);
+            $monthData = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $trends[] = [
+                'month' => $monthName,
+                'total_ncrs' => (int)$monthData['total'],
+                'closed_ncrs' => (int)$monthData['closed']
+            ];
+        }
+        
+        sendJsonResponse([
+            'success' => true,
+            'data' => [
+                'severity_breakdown' => $severityBreakdown,
+                'category_breakdown' => $categoryBreakdown,
+                'trends' => $trends,
+                'period' => [
+                    'from' => $filters['date_from'],
+                    'to' => $filters['date_to']
+                ]
+            ]
+        ]);
+        
+    } catch (Exception $e) {
+        throw $e;
+    }
 }
 
 /**
- * Generate comprehensive compliance PDF HTML
- * @param array $data Compliance data
- * @return string HTML content
+ * Get audit trail data
  */
-function generateCompliancePDFHTML($data) {
-    $html = '<!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Compliance Summary Report</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1, h2 { color: #1e40af; }
-            h1 { border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f3f4f6; font-weight: bold; }
-            .high-compliance { background-color: #dcfce7; }
-            .medium-compliance { background-color: #fef3c7; }
-            .low-compliance { background-color: #fee2e2; }
-        </style>
-    </head>
-    <body>
-        <h1>Compliance Summary Report</h1>
-        <p>Generated: ' . $data['generated_at'] . '</p>
-        
-        <h2>Department Compliance</h2>
-        <table>';
+function getAuditTrail() {
+    global $pdo, $userId, $userRole;
     
-    $html .= '<tr><th>Department</th><th>Checklists</th><th>Total Items</th><th>Passed</th><th>Failed</th><th>Compliance %</th></tr>';
+    $page = (int)($_GET['page'] ?? 1);
+    $limit = min((int)($_GET['limit'] ?? 50), 100);
+    $offset = ($page - 1) * $limit;
     
-    foreach ($data['department_compliance'] as $row) {
-        $complianceClass = '';
-        if ($row['compliance_percentage'] >= 90) $complianceClass = 'high-compliance';
-        elseif ($row['compliance_percentage'] >= 75) $complianceClass = 'medium-compliance';
-        else $complianceClass = 'low-compliance';
-        
-        $html .= "<tr class='$complianceClass'>
-            <td>" . htmlspecialchars($row['department_name']) . "</td>
-            <td>" . $row['total_checklists'] . "</td>
-            <td>" . $row['total_items'] . "</td>
-            <td>" . $row['passed_items'] . "</td>
-            <td>" . $row['failed_items'] . "</td>
-            <td>" . $row['compliance_percentage'] . "%</td>
-        </tr>";
+    $filters = [
+        'date_from' => $_GET['date_from'] ?? date('Y-m-d', strtotime('-30 days')),
+        'date_to' => $_GET['date_to'] ?? date('Y-m-d'),
+        'entity_type' => $_GET['entity_type'] ?? null,
+        'action_type' => $_GET['action_type'] ?? null,
+        'user_id' => $_GET['user_id'] ?? null
+    ];
+    
+    $conditions = ['al.created_at BETWEEN ? AND ?'];
+    $params = [$filters['date_from'], $filters['date_to']];
+    
+    if ($filters['entity_type']) {
+        $conditions[] = 'al.entity_type = ?';
+        $params[] = $filters['entity_type'];
     }
     
-    $html .= '</table>
-        
-        <h2>Standards Compliance</h2>
-        <table>
-        <tr><th>Standard</th><th>Clause</th><th>Title</th><th>Items</th><th>Passed</th><th>Failed</th><th>Compliance %</th></tr>';
-    
-    foreach ($data['standards_compliance'] as $row) {
-        $complianceClass = '';
-        if ($row['compliance_percentage'] >= 90) $complianceClass = 'high-compliance';
-        elseif ($row['compliance_percentage'] >= 75) $complianceClass = 'medium-compliance';
-        else $complianceClass = 'low-compliance';
-        
-        $html .= "<tr class='$complianceClass'>
-            <td>" . htmlspecialchars($row['source']) . "</td>
-            <td>" . htmlspecialchars($row['clause_id']) . "</td>
-            <td>" . htmlspecialchars($row['title']) . "</td>
-            <td>" . $row['total_items'] . "</td>
-            <td>" . $row['passed_items'] . "</td>
-            <td>" . $row['failed_items'] . "</td>
-            <td>" . $row['compliance_percentage'] . "%</td>
-        </tr>";
+    if ($filters['action_type']) {
+        $conditions[] = 'al.action_type = ?';
+        $params[] = $filters['action_type'];
     }
     
-    $html .= '</table>
-    </body>
-    </html>';
+    if ($filters['user_id']) {
+        $conditions[] = 'al.user_id = ?';
+        $params[] = $filters['user_id'];
+    }
     
-    return $html;
+    // Restrict to user's department if not admin
+    if (!in_array($userRole, ['superadmin', 'admin'])) {
+        $conditions[] = 'u.department_id = ?';
+        $params[] = $_SESSION['department_id'];
+    }
+    
+    $whereClause = implode(' AND ', $conditions);
+    
+    try {
+        // Get total count
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total
+            FROM audit_logs al
+            JOIN users u ON al.user_id = u.id
+            WHERE $whereClause
+        ");
+        $stmt->execute($params);
+        $total = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        // Get audit logs
+        $stmt = $pdo->prepare("
+            SELECT 
+                al.id,
+                al.entity_type,
+                al.entity_id,
+                al.action_type,
+                al.changes,
+                al.ip_address,
+                al.user_agent,
+                al.created_at,
+                u.name as user_name,
+                u.email as user_email
+            FROM audit_logs al
+            JOIN users u ON al.user_id = u.id
+            WHERE $whereClause
+            ORDER BY al.created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt->execute($params);
+        $auditLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Process changes JSON
+        foreach ($auditLogs as &$log) {
+            $log['changes'] = json_decode($log['changes'], true);
+        }
+        
+        $pagination = [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'pages' => ceil($total / $limit)
+        ];
+        
+        sendJsonResponse([
+            'success' => true,
+            'data' => [
+                'audit_logs' => $auditLogs,
+                'pagination' => $pagination
+            ]
+        ]);
+        
+    } catch (Exception $e) {
+        throw $e;
+    }
+}
+
+/**
+ * Check if user has reporting permission
+ */
+function hasReportingPermission($role) {
+    return in_array($role, ['superadmin', 'admin', 'auditor', 'dept_manager']);
+}
+
+/**
+ * Log API errors
+ */
+function logError($context, $message, $details = []) {
+    error_log("$context: $message " . json_encode($details));
+}
+
+/**
+ * Send JSON response
+ */
+function sendJsonResponse($data, $statusCode = 200) {
+    http_response_code($statusCode);
+    echo json_encode($data);
+    exit();
 }
 ?>

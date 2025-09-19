@@ -187,7 +187,18 @@ function handlePostRequest() {
     
     $input = json_decode(file_get_contents('php://input'), true);
     
-    if (!$input || !isset($input['asset_id']) || !isset($input['document_type_id'])) {
+    // If no asset_id provided, get assets for selection
+    if (!$input || (!isset($input['asset_id']) && !isset($input['get_assets']))) {
+        jsonResponse(['success' => false, 'error' => 'Asset ID and document type ID required, or set get_assets=true to list available assets'], 400);
+    }
+    
+    // Handle asset selection request
+    if (isset($input['get_assets']) && $input['get_assets']) {
+        handleGetAssetsForSelection($input);
+        return;
+    }
+    
+    if (!isset($input['asset_id']) || !isset($input['document_type_id'])) {
         jsonResponse(['success' => false, 'error' => 'Asset ID and document type ID required'], 400);
     }
     
@@ -360,6 +371,56 @@ function getDefaultChecklistItems($documentTypeId) {
     ];
     
     return $defaultItems[$documentTypeId] ?? $defaultItems[1];
+}
+
+/**
+ * Handle asset selection for checklist creation
+ * @param array $input Request input data
+ */
+function handleGetAssetsForSelection($input) {
+    $db = Database::getInstance()->getConnection();
+    
+    try {
+        $assetTypeId = isset($input['asset_type_id']) ? intval($input['asset_type_id']) : 0;
+        $documentTypeId = isset($input['document_type_id']) ? intval($input['document_type_id']) : 0;
+        
+        $whereConditions = ["a.status = 'active'"];
+        $params = [];
+        
+        if ($assetTypeId) {
+            $whereConditions[] = "a.asset_type_id = ?";
+            $params[] = $assetTypeId;
+        }
+        
+        // Apply department restrictions for non-admin users
+        if (!hasRole(['superadmin', 'admin']) && isset($_SESSION['department_id'])) {
+            $whereConditions[] = "at.department_id = ?";
+            $params[] = $_SESSION['department_id'];
+        }
+        
+        $whereClause = 'WHERE ' . implode(' AND ', $whereConditions);
+        
+        $stmt = $db->prepare("
+            SELECT a.id, a.name, a.asset_tag, a.location, a.model,
+                   at.name as asset_type_name, d.name as department_name
+            FROM assets a
+            JOIN asset_types at ON a.asset_type_id = at.id
+            JOIN departments d ON at.department_id = d.id
+            $whereClause
+            ORDER BY a.name ASC
+        ");
+        $stmt->execute($params);
+        $assets = $stmt->fetchAll();
+        
+        jsonResponse([
+            'success' => true,
+            'data' => $assets
+        ]);
+        
+    } catch (Exception $e) {
+        error_log("Error fetching assets for selection: " . $e->getMessage());
+        jsonResponse(['success' => false, 'error' => 'Internal server error'], 500);
+    }
 }
 
 /**

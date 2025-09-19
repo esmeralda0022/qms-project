@@ -294,6 +294,207 @@ class APIHelper {
         return response;
     }
 
+    // User management methods
+    async getUsers(filters = {}) {
+        const response = await this.request('GET', 'users.php', filters);
+        return response;
+    }
+    
+    async getUserById(userId) {
+        const response = await this.request('GET', `users.php?id=${userId}`);
+        return response;
+    }
+    
+    async createUser(userData) {
+        const response = await this.request('POST', 'users.php', userData);
+        return response;
+    }
+    
+    async updateUser(userId, userData) {
+        const response = await this.request('PUT', `users.php?id=${userId}`, userData);
+        return response;
+    }
+    
+    async deleteUser(userId) {
+        const response = await this.request('DELETE', `users.php?id=${userId}`);
+        return response;
+    }
+    
+    async resetPassword(userId, newPassword) {
+        const response = await this.request('POST', `users.php?id=${userId}&action=reset_password`, {
+            new_password: newPassword
+        });
+        return response;
+    }
+    
+    async getRoles() {
+        const response = await this.request('GET', 'users.php?action=roles');
+        return response;
+    }
+    
+    async getUserPermissions(userId) {
+        const response = await this.request('GET', `users.php?action=permissions&user_id=${userId}`);
+        return response;
+    }
+    
+    // Asset management methods
+    async getAssets(filters = {}) {
+        const response = await this.request('GET', 'assets.php', filters);
+        return response;
+    }
+    
+    async getAssetById(assetId) {
+        const response = await this.request('GET', `assets.php?id=${assetId}`);
+        return response;
+    }
+    
+    async createAsset(assetData) {
+        const response = await this.request('POST', 'assets.php', assetData);
+        return response;
+    }
+    
+    async updateAsset(assetId, assetData) {
+        const response = await this.request('PUT', `assets.php?id=${assetId}`, assetData);
+        return response;
+    }
+    
+    async deleteAsset(assetId) {
+        const response = await this.request('DELETE', `assets.php?id=${assetId}`);
+        return response;
+    }
+    
+    // Maintenance management methods
+    async getMaintenanceSchedules(filters = {}) {
+        const response = await this.request('GET', 'maintenance.php', filters);
+        return response;
+    }
+    
+    async getMaintenanceScheduleById(scheduleId) {
+        const response = await this.request('GET', `maintenance.php?id=${scheduleId}`);
+        return response;
+    }
+    
+    async createMaintenanceSchedule(scheduleData) {
+        const response = await this.request('POST', 'maintenance.php', scheduleData);
+        return response;
+    }
+    
+    async updateMaintenanceSchedule(scheduleId, scheduleData) {
+        const response = await this.request('PUT', `maintenance.php?id=${scheduleId}`, scheduleData);
+        return response;
+    }
+    
+    async deleteMaintenanceSchedule(scheduleId) {
+        const response = await this.request('DELETE', `maintenance.php?id=${scheduleId}`);
+        return response;
+    }
+    
+    async getDashboardMetrics(departmentId = null) {
+        const params = departmentId ? { department_id: departmentId } : {};
+        const response = await this.request('GET', 'maintenance.php?dashboard=true', params);
+        return response;
+    }
+
+    // NCR Management methods
+    async getNCRs(filters = {}) {
+        const response = await this.request('GET', 'ncr.php', filters);
+        return response;
+    }
+    
+    async getNCRById(ncrId) {
+        const response = await this.request('GET', `ncr.php?id=${ncrId}`);
+        return response;
+    }
+    
+    async createNCR(ncrData) {
+        const response = await this.request('POST', 'ncr.php', ncrData);
+        return response;
+    }
+    
+    async updateNCR(ncrId, ncrData) {
+        const response = await this.request('PUT', `ncr.php?id=${ncrId}`, ncrData);
+        return response;
+    }
+    
+    async deleteNCR(ncrId) {
+        const response = await this.request('DELETE', `ncr.php?id=${ncrId}`);
+        return response;
+    }
+    
+    async getNCRActions(ncrId) {
+        const response = await this.request('GET', `ncr.php?id=${ncrId}&actions=1`);
+        return response;
+    }
+    
+    async createNCRAction(actionData) {
+        const response = await this.request('POST', 'ncr.php?action=create_action', actionData);
+        return response;
+    }
+    
+    async updateNCRAction(actionId, actionData) {
+        const response = await this.request('PUT', `ncr.php?action=update_action&action_id=${actionId}`, actionData);
+        return response;
+    }
+    
+    async deleteNCRAction(actionId) {
+        const response = await this.request('DELETE', `ncr.php?action=delete_action&action_id=${actionId}`);
+        return response;
+    }
+    
+    async updateNCRStatus(ncrId, status, comments = '') {
+        const response = await this.request('PUT', `ncr.php?id=${ncrId}&action=update_status`, {
+            status: status,
+            comments: comments
+        });
+        return response;
+    }
+
+    // Reports and Analytics methods
+    async getDashboardAnalytics(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=dashboard_analytics', filters);
+        return response;
+    }
+    
+    async getComplianceReport(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=compliance_report', filters);
+        return response;
+    }
+    
+    async getDepartmentPerformance(departmentId) {
+        const response = await this.request('GET', `reports.php?action=department_performance&department_id=${departmentId}`);
+        return response;
+    }
+    
+    async getAssetUtilization(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=asset_utilization', filters);
+        return response;
+    }
+    
+    async getNCRAnalysis(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=ncr_analysis', filters);
+        return response;
+    }
+    
+    async getAuditTrail(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=audit_trail', filters);
+        return response;
+    }
+    
+    async getMaintenanceTrends(filters = {}) {
+        const response = await this.request('GET', 'reports.php?action=maintenance_trends', filters);
+        return response;
+    }
+    
+    async generateCustomReport(reportConfig) {
+        const response = await this.request('POST', 'reports.php?action=generate_custom_report', reportConfig);
+        return response;
+    }
+    
+    async exportReport(exportConfig) {
+        const response = await this.request('POST', 'reports.php?action=export_report', exportConfig);
+        return response;
+    }
+
     // Utility methods
     showToast(message, type = 'info', duration = 5000) {
         const toastContainer = document.getElementById('toastContainer');

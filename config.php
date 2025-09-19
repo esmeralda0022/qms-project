@@ -153,6 +153,104 @@ function hasRole($allowedRoles) {
 }
 
 /**
+ * Check if user has specific permission
+ * @param string $permission Permission to check
+ * @return bool True if user has permission, false otherwise
+ */
+function hasPermission($permission) {
+    if (!isLoggedIn()) {
+        return false;
+    }
+    
+    // Super admin has all permissions
+    if ($_SESSION['user_role'] === 'superadmin') {
+        return true;
+    }
+    
+    try {
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT granted 
+            FROM user_permissions 
+            WHERE user_id = ? AND permission = ? AND granted = 1
+        ");
+        $stmt->execute([$_SESSION['user_id'], $permission]);
+        return $stmt->fetch() !== false;
+    } catch (Exception $e) {
+        error_log("Permission check failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Get user's department access
+ * @return array Array of accessible department IDs
+ */
+function getUserDepartmentAccess() {
+    if (!isLoggedIn()) {
+        return [];
+    }
+    
+    // Super admin and admin have access to all departments
+    if (in_array($_SESSION['user_role'], ['superadmin', 'admin'])) {
+        try {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT id FROM departments ORDER BY name");
+            $stmt->execute();
+            return array_column($stmt->fetchAll(), 'id');
+        } catch (Exception $e) {
+            error_log("Department access check failed: " . $e->getMessage());
+            return [];
+        }
+    }
+    
+    // Other users have access only to their assigned department
+    return isset($_SESSION['department_id']) ? [$_SESSION['department_id']] : [];
+}
+
+/**
+ * Check if user can access specific department
+ * @param int $departmentId Department ID to check
+ * @return bool True if user can access department, false otherwise
+ */
+function canAccessDepartment($departmentId) {
+    $accessibleDepts = getUserDepartmentAccess();
+    return in_array($departmentId, $accessibleDepts);
+}
+
+/**
+ * Get role hierarchy for permission inheritance
+ * @return array Role hierarchy with numeric levels
+ */
+function getRoleHierarchy() {
+    return [
+        'viewer' => 1,
+        'technician' => 2,
+        'dept_manager' => 3,
+        'auditor' => 4,
+        'admin' => 5,
+        'superadmin' => 6
+    ];
+}
+
+/**
+ * Check if user role has higher or equal level than required role
+ * @param string $requiredRole Minimum required role
+ * @return bool True if user role is sufficient, false otherwise
+ */
+function hasRoleLevel($requiredRole) {
+    if (!isLoggedIn()) {
+        return false;
+    }
+    
+    $hierarchy = getRoleHierarchy();
+    $userLevel = $hierarchy[$_SESSION['user_role']] ?? 0;
+    $requiredLevel = $hierarchy[$requiredRole] ?? 99;
+    
+    return $userLevel >= $requiredLevel;
+}
+
+/**
  * Log audit trail entry
  * @param string $action Action performed
  * @param string $entityType Entity type affected
